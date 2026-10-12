@@ -9,6 +9,7 @@ from analysis.device_performance import compute_jv
 from analysis.forward_edge_contact import solve_forward_edge_case
 from models.device_geometry import DeviceGeometry, MaterialProperties, create_ag_mask
 from simulation.network_solver import PEDOTNetworkSolver
+from models.local_diode import local_reference, solver_diode_parameters, validate_diode
 
 
 def parse_values(text):
@@ -27,6 +28,11 @@ def validate_config(config):
         raise ValueError("每边网格节点数应在 11–301 之间。")
     if config["mode"] not in ("forward", "inverted", "mapping"):
         raise ValueError("未知模型。")
+    if config.get("diode_mode", "calibrated") not in ("calibrated", "manual"):
+        raise ValueError("未知单二极管参数模式。")
+    if config["mode"] != "mapping" and config.get("diode_mode") == "manual":
+        validate_diode(config["diode"])
+        local_reference(config["diode"])
     for name in ("sides", "sigmas"):
         if not config[name] or not all(np.isfinite(v) and v > 0 for v in config[name]):
             raise ValueError(f"{name} 必须为非空有限正数列表。")
@@ -61,8 +67,12 @@ def run_cases(config, progress=lambda *args: None, cancel=None):
                 return {"config": config, "rows": rows, "cases": cases, "cancelled": True}
             progress(len(rows), total, f"L={side:g} mm, σ={sigma:g} S/cm")
             if config["mode"] == "forward":
+                area_factor = (config["nodes"] / (config["nodes"] - 1)) ** 2
+                diode = solver_diode_parameters(config, area_factor)
+                v_max = max(1.05, local_reference(diode)["voc"] * 1.1)
                 item = solve_forward_edge_case(side, sigma, config["ito"],
-                                               config["thickness_nm"], config["nodes"], True)
+                                               config["thickness_nm"], config["nodes"], True,
+                                               diode_parameters=diode, v_max=v_max)
                 row = {key: value for key, value in asdict(item).items()
                        if key not in ("potential", "x_mm", "y_mm", "voltage", "j_ag")}
                 case = {"x": item.x_mm, "y": item.y_mm, "potential": item.potential,
@@ -77,17 +87,14 @@ def run_cases(config, progress=lambda *args: None, cancel=None):
                                    np.linspace(0, side * 1000, config["nodes"]))
                 mask = create_ag_mask(X, Y, geometry)
                 dA = (side * 0.1 / (config["nodes"] - 1)) ** 2
-                jph = 25 / (np.count_nonzero(mask) * dA / geometry.ag_area)
-                vt = MaterialProperties().thermal_voltage
-                j0 = (jph - 1000 * 0.9 / 466.15) / (np.exp(0.9 / (1.5 * vt)) - 1)
-                if j0 <= 0:
-                    raise ValueError("当前网格与 Ag 尺寸的面积标定无效；请提高网格分辨率。")
+                area_factor = np.count_nonzero(mask) * dA / geometry.ag_area
+                diode = solver_diode_parameters(config, area_factor)
                 material = MaterialProperties(pedot_conductivity_lateral=sigma,
-                                              jph=jph, j0=j0, diode_ideality=1.5,
-                                              rsh=466.15, contact_resistance_ag=0)
+                                              contact_resistance_ag=0, **diode)
                 solver = PEDOTNetworkSolver(X, Y, geometry, material, mask,
                                             illumination=config["illumination"])
-                jv = compute_jv(solver, n_points=61, verbose=False)
+                v_max = max(1.10, local_reference(diode)["voc"] * 1.1)
+                jv = compute_jv(solver, v_range=(0, v_max), n_points=61, verbose=False)
                 solver.solve(jv.vmpp, v0=solver._vu)
                 row = {"side_mm": side, "area_mm2": side ** 2, "sigma_pedot": sigma,
                        "ag_area_mm2": geometry.ag_area * 100,
@@ -98,6 +105,8 @@ def run_cases(config, progress=lambda *args: None, cancel=None):
                 case = {"x": X / 1000, "y": Y / 1000, "potential": solver.potential.copy(),
                         "voltage": jv.voltage, "j_ag": jv.j_ag,
                         "side": side, "sigma": sigma, "vmpp": jv.vmpp}
+            row.update({f"solver_{key}": value for key, value in diode.items()})
+            row["area_factor"] = area_factor
             rows.append(row)
             cases.append(case)
             progress(len(rows), total, f"PCE={row['pce']:.4f}% / FF={row['ff']:.4f}")

@@ -19,6 +19,7 @@ from matplotlib.figure import Figure
 import numpy as np
 
 from gui_backend import parse_values, run_cases, validate_config
+from models.local_diode import DEFAULT_DIODE, local_reference
 
 
 MODES = {"正向 / Conventional": "forward", "倒置局部 Ag / Inverted": "inverted",
@@ -32,7 +33,7 @@ class SimulationApp:
         self.events = queue.Queue()
         self.cancel = threading.Event()
         self.busy = False
-        root.title("PEDOT Device Simulation · 横向输运模拟")
+        root.title("PEDOT Device Simulation · 横向输运与单二极管调参")
         root.geometry("1340x880")
         root.minsize(1100, 740)
         style = ttk.Style(root)
@@ -44,8 +45,12 @@ class SimulationApp:
         style.configure("Treeview", rowheight=27)
         top = ttk.Frame(root, padding=(20, 14))
         top.pack(fill="x")
-        ttk.Label(top, text="PEDOT Device Simulation", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(top, text="有机太阳能电池 · 横向收集 / 面积损失 / 复合阳极方阻").pack(anchor="w")
+        branding = ttk.Frame(top)
+        branding.pack(side="left", anchor="n")
+        ttk.Label(branding, text="PEDOT Device Simulation", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(branding, text="有机太阳能电池 · 横向收集 / 面积损失 / 复合阳极方阻").pack(anchor="w")
+        actions = ttk.Frame(top)
+        actions.pack(side="right", fill="x", padx=(25, 0))
         body = ttk.Panedwindow(root, orient="horizontal")
         body.pack(fill="both", expand=True, padx=15, pady=(0, 12))
         sidebar = ttk.Frame(body, width=320)
@@ -79,20 +84,37 @@ class SimulationApp:
         self.illumination_combo = ttk.Combobox(controls, textvariable=self.illumination,
                                                values=["full", "ag_only", "outside_ag"], state="readonly")
         self.illumination_combo.pack(fill="x", pady=(0, 12))
+        diode_frame = ttk.LabelFrame(controls, text="局部单二极管 / Local diode", padding=7)
+        diode_frame.pack(fill="x", pady=6)
+        self.diode_mode = tk.StringVar(value="calibrated")
+        self.diode_buttons = []
+        for label, value in [("原有标定 / Calibrated", "calibrated"), ("手动参数 / Manual", "manual")]:
+            button = ttk.Radiobutton(diode_frame, text=label, variable=self.diode_mode,
+                                     value=value, command=self.change_diode_mode)
+            button.pack(anchor="w")
+            self.diode_buttons.append(button)
+        for key, label in [("jph", "Jph (mA/cm²)"), ("j0", "J0 (mA/cm²)"),
+                           ("diode_ideality", "理想因子 n"), ("rsh", "Rsh (Ω·cm²)"),
+                           ("temperature", "温度 T (K)")]:
+            self.field(diode_frame, key, label, f"{DEFAULT_DIODE[key]:.10g}")
+        self.preview_button = ttk.Button(diode_frame, text="预览局部 J–V / Preview", command=self.preview_diode)
+        self.preview_button.pack(fill="x", pady=5)
+        ttk.Button(diode_frame, text="恢复默认参数 / Reset", command=self.reset_diode).pack(fill="x")
+        ttk.Label(diode_frame, text="手动密度按真实几何面积输入。\n求解时同步校正 Jph、J0、Rsh；\nFF 和 Voc 是计算结果。", wraplength=260).pack(anchor="w", pady=5)
         self.description = tk.StringVar()
         ttk.Label(controls, textvariable=self.description, wraplength=275,
                   foreground="#52647c").pack(fill="x", pady=5)
-        buttons = ttk.Frame(controls)
+        buttons = ttk.Frame(actions)
         buttons.pack(fill="x", pady=10)
         self.run_button = ttk.Button(buttons, text="运行 / Run", command=self.start)
         self.run_button.pack(side="left", expand=True, fill="x")
         self.stop_button = ttk.Button(buttons, text="停止 / Stop", command=self.stop, state="disabled")
         self.stop_button.pack(side="left", expand=True, fill="x", padx=(5, 0))
-        self.progress = ttk.Progressbar(controls, mode="determinate")
+        self.progress = ttk.Progressbar(actions, mode="determinate")
         self.progress.pack(fill="x", pady=4)
         self.status = tk.StringVar(value="就绪 / Ready")
-        ttk.Label(controls, textvariable=self.status, wraplength=275).pack(anchor="w", pady=5)
-        self.export_button = ttk.Button(controls, text="导出数据与当前图 / Export", command=self.export, state="disabled")
+        ttk.Label(actions, textvariable=self.status, wraplength=370).pack(anchor="w", pady=5)
+        self.export_button = ttk.Button(actions, text="导出数据与当前图 / Export", command=self.export, state="disabled")
         self.export_button.pack(fill="x", pady=5)
         notebook = ttk.Notebook(view)
         notebook.pack(fill="both", expand=True)
@@ -140,6 +162,8 @@ class SimulationApp:
             self.fields["sigmas"][0].set("1e-4, 1e6" if mode == "mapping" else "0.0023, 2")
             self.fields["nodes"][0].set("201" if mode == "inverted" else "51")
         for key, (_, entry) in self.fields.items():
+            if key in DEFAULT_DIODE:
+                continue
             enabled = key in {"thickness_nm", "sigmas"} or (
                 mode == "mapping" and key == "ito_range") or (
                 mode != "mapping" and key in {"sides", "nodes"}) or (
@@ -150,7 +174,55 @@ class SimulationApp:
             "forward": "ITO/PEDOT/活性层/PDINN/Ag\n整面 Ag；ITO x=0 整边取电。ITO/PEDOT 理想并联。",
             "inverted": "底电极/ETL/活性层/PEDOT/局部 Ag\n中央正方形 Ag 接触，底电极等势。网格间距以下的收集长度不定量解析。",
             "mapping": "电导率列表的最小/最大值定义横轴范围。纵轴为 ITO 方阻范围，颜色为复合层方阻。解析计算，无需网格求解。",
-        }[mode] + "\n局部电池基准：Jsc=25、Voc=0.9 V、FF≈0.77；光强 100 mW/cm²。")
+        }[mode] + "\n原有标定：Jsc=25、Voc=0.9 V、FF≈0.77；可切换手动参数。光强 100 mW/cm²。")
+        self.change_diode_mode()
+
+    def change_diode_mode(self):
+        enabled = MODES[self.mode.get()] != "mapping"
+        for button in self.diode_buttons:
+            button.configure(state="normal" if enabled else "disabled")
+        for key in DEFAULT_DIODE:
+            self.fields[key][1].configure(state="normal" if enabled and self.diode_mode.get() == "manual" else "disabled")
+        self.preview_button.configure(state="normal" if enabled else "disabled")
+
+    def reset_diode(self):
+        for key, value in DEFAULT_DIODE.items():
+            self.fields[key][0].set(f"{value:.10g}")
+
+    def diode_parameters(self):
+        if self.diode_mode.get() == "calibrated":
+            return dict(DEFAULT_DIODE)
+        return {key: float(self.fields[key][0].get()) for key in DEFAULT_DIODE}
+
+    def preview_diode(self):
+        try:
+            parameters = self.diode_parameters()
+            reference = local_reference(parameters)
+        except (ValueError, OverflowError) as error:
+            messagebox.showerror("参数错误", str(error))
+            return
+        window = tk.Toplevel(self.root)
+        window.title("局部单二极管 J–V · 无横向压降")
+        window.geometry("760x620")
+        ttk.Label(window, text=f"Jsc={reference['jsc']:.3f} mA/cm²    Voc={reference['voc']:.4f} V\n"
+                  f"FF={reference['ff']:.4f}    PCE={reference['pce']:.3f}% (100 mW/cm²)",
+                  padding=12).pack(fill="x")
+        ttk.Label(window, text="这是输入参数的局部参考曲线；器件还包含面积换算和横向电阻网络。",
+                  padding=5).pack(fill="x")
+        figure = Figure(figsize=(7, 4.5), layout="constrained")
+        ax = figure.add_subplot(111)
+        ax.plot(reference["voltage"], reference["current"], lw=2, label="Local single diode")
+        ax.plot(reference["vmpp"], reference["pce"] / reference["vmpp"], "o", label="MPP")
+        ax.axhline(0, color="gray", lw=0.8)
+        ax.set(xlabel="Voltage (V)", ylabel="J (mA/cm²)", title="Local J–V · no lateral loss")
+        ax.set_ylim(-0.15 * reference["jsc"], 1.1 * reference["jsc"])
+        ax.grid(alpha=0.3)
+        ax.legend()
+        canvas = FigureCanvasTkAgg(figure, master=window)
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+        NavigationToolbar2Tk(canvas, window).update()
+        canvas.draw()
+        window.preview_canvas = canvas
 
     def config(self):
         mode = MODES[self.mode.get()]
@@ -163,7 +235,9 @@ class SimulationApp:
                 "ag_mm": float(self.fields["ag_mm"][0].get()) if mode == "inverted" else 2.0,
                 "nodes": int(self.fields["nodes"][0].get()) if mode != "mapping" else 51,
                 "ito_range": parse_values(self.fields["ito_range"][0].get()) if mode == "mapping" else [1.0, 100.0],
-                "illumination": self.illumination.get()}
+                "illumination": self.illumination.get(),
+                "diode_mode": self.diode_mode.get() if mode != "mapping" else "calibrated",
+                "diode": self.diode_parameters() if mode != "mapping" else dict(DEFAULT_DIODE)}
 
     def start(self):
         if self.busy:
@@ -257,11 +331,15 @@ class SimulationApp:
             self.figure.colorbar(image, ax=ax, label="Composite R_sheet (Ω/□)")
         else:
             axes = self.figure.subplots(2, 2)
+            display_max = (max(0.95, max(row["voc"] for row in result["rows"]) * 1.05)
+                           if result["config"].get("diode_mode") == "manual" else 0.95)
             for case in result["cases"]:
-                display = case["voltage"] <= 0.95
+                display = case["voltage"] <= display_max
                 axes[0, 0].plot(case["voltage"][display], case["j_ag"][display],
                                 label=f"{case['side']:g} mm / {case['sigma']:g} S/cm")
-            axes[0, 0].set(xlabel="Voltage (V)", ylabel="J_Ag (mA/cm²)", title="J–V (Ag area)", xlim=(0, 0.95))
+            axes[0, 0].set(xlabel="Voltage (V)", ylabel="J_Ag (mA/cm²)", title="J–V (Ag area)", xlim=(0, display_max))
+            jsc_max = max(row["jsc"] for row in result["rows"])
+            axes[0, 0].set_ylim(-0.15 * jsc_max, 1.1 * jsc_max)
             axes[0, 0].legend(fontsize=7, ncol=2)
             for sigma in result["config"]["sigmas"]:
                 rows = [r for r in result["rows"] if r["sigma_pedot"] == sigma]

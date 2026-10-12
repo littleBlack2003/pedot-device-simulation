@@ -35,7 +35,14 @@ After installing the dependencies, run `python gui.py` from the repository root.
 
 Select a row in the Data tab to display its MPP map. Calculation runs in a background thread. Stop takes effect after the current case finishes and preserves completed cases. Export creates a new subdirectory containing parameters in JSON, the current plot in PNG, full summary metrics, per-case J–V CSVs, and MPP spatial CSVs. Mapping mode exports conductivity, ITO sheet resistance, and composite sheet resistance.
 
-Local photovoltaic calibration remains fixed as in the original scripts; the GUI does not independently adjust Jsc, Voc, or FF. J–V plots display 0–0.95 V; exports retain the full computed range. Nodes per side must be 11–301, with at most 60 cases per interactive sweep. The inverted default is 201 nodes, giving approximately 25 µm spacing at 5 mm; compare mesh resolutions before interpreting small collection lengths.
+The Local diode panel provides two modes:
+
+- **Calibrated:** preserves the original `Jsc=25 mA/cm²`, `Voc=0.9 V`, and `FF≈0.77` reference. Jph/J0 are determined using the existing mesh-area calibration; input fields are disabled.
+- **Manual:** edit `Jph` and `J0` in **mA/cm²**, ideality factor `n`, `Rsh` in Ω·cm², and temperature `T` in K. Values must be finite and positive. Voc and FF are computed rather than forced to the original targets.
+
+Preview opens the local single-diode J–V curve without lateral loss and shows Jsc, Voc, FF, and PCE. Reset restores default reference parameters. Manual densities are defined per real geometric area; the existing node-area integration is corrected using `Jph_solver=Jph/f`, `J0_solver=J0/f`, and `Rsh_solver=Rsh×f`, where `f` is integrated node area divided by nominal area. This preserves the local curve shape. Exported summary CSVs include actual solver parameters and the area factor.
+
+Calibrated plots display 0–0.95 V. In manual mode, plot and scan limits expand with Voc; exports retain the full computed range. Diode controls are disabled in sheet-resistance mapping mode. Nodes per side must be 11–301, with at most 60 cases per interactive sweep. The inverted default is 201 nodes, giving approximately 25 µm spacing at 5 mm; compare mesh resolutions before interpreting small collection lengths.
 
 Official Windows Python distributions usually include Tkinter. On Linux, install the system `python3-tk` package if needed. Run backend checks with `python -m unittest discover -s tests -v`.
 

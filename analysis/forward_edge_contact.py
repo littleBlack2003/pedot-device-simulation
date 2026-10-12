@@ -73,7 +73,9 @@ def _calibrated_material(sigma_pedot: float, thickness_nm: float,
 
 def solve_forward_edge_case(side_mm: float, sigma_pedot: float,
                             r_ito: float = 15.0, thickness_nm: float = 30.0,
-                            n_nodes: int = 51, save_map: bool = False) -> ForwardResult:
+                            n_nodes: int = 51, save_map: bool = False,
+                            diode_parameters: Optional[Dict[str, float]] = None,
+                            v_max: float = 1.05) -> ForwardResult:
     """求解单个正方形整面 Ag 器件；阳极在 x=0 全边接触。"""
     side_um = side_mm * 1000.0
     geometry = DeviceGeometry(
@@ -92,10 +94,16 @@ def solve_forward_edge_case(side_mm: float, sigma_pedot: float,
     grid_area_factor = (n_nodes / (n_nodes - 1)) ** 2
     material = _calibrated_material(sigma_pedot, thickness_nm, r_ito,
                                     jph=25.0 / grid_area_factor)
+    if diode_parameters is not None:
+        from models.local_diode import validate_diode
+        validate_diode(diode_parameters)
+        material = MaterialProperties(
+            pedot_conductivity_lateral=material.pedot_conductivity_lateral,
+            contact_resistance_ag=0.0, **diode_parameters)
     solver = PEDOTNetworkSolver(X, Y, geometry, material, edge_contact,
                                 illumination="full")
 
-    voltages = np.linspace(0.0, 1.05, 43)
+    voltages = np.linspace(0.0, v_max, 43)
     currents = np.empty_like(voltages)
     warm = None
     for k, voltage in enumerate(voltages):

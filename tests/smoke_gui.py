@@ -43,6 +43,19 @@ def main():
         assert (output / mode / "plots.png").exists()
     assert (output / "mapping/sheet_resistance_map.csv").exists()
     assert (output / "inverted/case_01_mpp_map.csv").exists()
+    app.diode_mode.set("manual")
+    app.change_diode_mode()
+    app.fields["jph"][0].set("30")
+    app.fields["j0"][0].set("1e-12")
+    assert app.config()["diode"]["jph"] == 30
+    assert str(app.fields["jph"][1].cget("state")) == "normal"
+    app.preview_diode()
+    root.update()
+    assert any(isinstance(child, tk.Toplevel) for child in root.winfo_children())
+    app.result = run_cases(app.config())
+    app.draw_result()
+    app.export_to(output / "manual")
+    assert (output / "manual/parameters.json").exists()
     print("Desktop smoke check passed: window, background worker, case selection, three-mode export")
     print("Export button bottom / window height:",
           app.export_button.winfo_rooty() - root.winfo_rooty() + app.export_button.winfo_height(),
