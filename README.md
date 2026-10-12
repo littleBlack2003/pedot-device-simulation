@@ -1,5 +1,7 @@
 # PEDOT Device Simulation：有机太阳能电池横向输运模拟
 
+[中文](README.md) | [English](README.en.md)
+
 Python 二维分布式微电池网络模型，研究 PEDOT 横向电导率对倒置局部 Ag 器件的扩展收集，以及正向 ITO/PEDOT 复合阳极的大面积取电损失。使用 NumPy、SciPy 和 Matplotlib。
 
 ## 快速开始
