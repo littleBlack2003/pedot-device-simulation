@@ -1,0 +1,259 @@
+\documentclass[UTF8,a4paper,11pt]{ctexart}
+
+\usepackage[margin=2.25cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,tabularx,array}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,decorations.pathreplacing}
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}
+
+\newcommand{\sigpar}{\sigma_{\parallel}}
+\newcommand{\Rs}{R_{\mathrm{sheet}}}
+\newcommand{\Aag}{A_{\mathrm{Ag}}}
+\newcommand{\Aactive}{A_{\mathrm{active}}}
+\newcommand{\Aeff}{A_{\mathrm{effective}}}
+\renewcommand{\arraystretch}{1.18}
+
+\title{局部 Ag 顶电极有机太阳能电池中\\PEDOT 横向电导率影响的二维模拟总结}
+\author{PEDOT Device Simulation Project}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+本报告建立了一个二维分布式微电池网络模型，用于研究由阴影掩模板形成\textbf{局部 Ag 顶电极}的有机太阳能电池中，PEDOT 空穴传输层（HTL）横向电导率对终端电流、填充因子和有效收集范围的影响。模型表明，Ag 覆盖区外连续活性层产生的光生空穴可经 PEDOT 横向输运至 Ag 接触区；因此，以 Ag 名义面积归一化时可能出现表观短路电流偏高。对于未改性 PEDOT:PSS AI 4083 的实测横向电导率 $2.3\times10^{-3}$~S/cm，横向收集在毫米尺度上可忽略。对于 30~nm HTL，要获得至少约 10\% 的 Ag 外额外短路电流，当前模型预测 $\sigpar$ 需达到约 $0.2$--$0.3$~S/cm；毫米尺度收集则需进入约 $10$--$30$~S/cm 的更高导电区间。
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{研究问题与核心结论}
+
+常规有机太阳能电池中，金属顶电极常通过阴影掩模板局部蒸镀，而非覆盖整个连续活性层。当 PEDOT 位于活性层与局部 Ag 电极之间时，Ag 外区域的光生空穴可能先注入 PEDOT，再在面内横向输运至 Ag。由此产生两个需要区分的量：
+
+\begin{equation}
+J_{\mathrm{Ag}}=\frac{I_{\mathrm{terminal}}}{\Aag},\qquad
+J_{\mathrm{active}}=\frac{I_{\mathrm{terminal}}}{\Aactive}.
+\end{equation}
+
+前者对应常以顶电极面积定义的名义器件电流密度；后者以连续受光活性层面积归一。若 $\Aeff>\Aag$，则较高的 $J_{\mathrm{Ag}}$ 并不意味着单位活性层面积的本征转换能力提高。
+
+本工作的结论可概括为：
+
+\begin{enumerate}[label=\arabic*.]
+  \item 普通 AI 4083和PEDOT:F 的横向电导率很低，主要承担纵向 HTL 功能，不会显著收集毫米尺度 Ag 外光电流。
+  \item 较高 $\sigpar$ 会扩大有效收集面积，并抬高以 $\Aag$ 归一化的表观 $J_{\mathrm{sc}}$。
+  \item 远离 Ag 的区域需要经历较长横向路径，其收集效率在接近最大功率点时下降，可使终端 J--V 出现更强弯曲并降低 FF。
+  \item 任何关于 ``高电导率导致 FF 下降'' 的实验结论，都应同时考察面积归一化、界面复合、漏电和接触电阻，而不能只归因于 PEDOT 本体电导率。
+\end{enumerate}
+
+\section{器件结构与二维收集机制}
+
+\subsection{模拟器件}
+
+本模型描述的器件为连续底电极、局部 Ag 顶电极的平面结构。第一版假定底电极/电子传输层为等势，重点求解 PEDOT 面内压降。Ag 区域为阴影掩模板定义的连续矩形，而不是晶硅电池的周期性银栅线。
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.74cm,y=1.18cm,font=\small,>=Latex]
+  % layers
+  \fill[gray!25] (0,0) rectangle (10,0.55);
+  \draw (0,0) rectangle (10,0.55);
+  \node[right] at (12.0,0.275) {玻璃 / 连续 ITO 底电极};
+  \fill[cyan!22] (0,0.55) rectangle (10,0.95);
+  \draw (0,0.55) rectangle (10,0.95);
+  \node[right] at (12.0,0.75) {ZnO ETL};
+  \fill[orange!18] (0,0.95) rectangle (10,1.90);
+  \draw (0,0.95) rectangle (10,1.90);
+  \node[right] at (12.0,1.425) {活性层：局部光生微电池};
+  \fill[blue!22] (0,1.90) rectangle (10,2.45);
+  \draw (0,1.90) rectangle (10,2.45);
+  \node[right] at (12.0,2.175) {PEDOT HTL（连续面内导电层）};
+  % local Ag
+  \fill[gray!65] (3.0,2.45) rectangle (7.0,3.05);
+  \draw[thick] (3.0,2.45) rectangle (7.0,3.05);
+  \node at (5.0,2.75) {局部 Ag 顶电极};
+  \draw[<->,thick] (0.15,3.45) -- (9.85,3.45) node[midway,above] {连续受光活性区 $\Aactive$};
+  \draw[<->,thick] (3.0,4.15) -- (7.0,4.15) node[midway,above] {名义 Ag 面积 $\Aag$};
+  % carrier paths
+  \draw[->,very thick,purple!80!black] (1.3,1.36) -- (1.3,2.17);
+  \draw[->,very thick,purple!80!black] (1.3,2.17) .. controls (1.9,2.68) and (2.45,2.72) .. (3.45,2.75);
+  \node[purple!80!black,align=center] at (1.35,5.15) {Ag 外光生空穴\\经 PEDOT 横向收集};
+  \draw[->,very thick,teal!80!black] (1.3,1.33) -- (1.3,0.28);
+  \node[teal!80!black,align=center] at (0.95,-0.55) {电子至连续\\底电极};
+  \node at (5.0,2.175) {$t_{\mathrm{PEDOT}}=30$~nm};
+  \node[circle,draw=purple!80!black,text=purple!80!black,thick,inner sep=1pt] at (1.9,1.75) {\small $+$};
+  \node[circle,draw=teal!80!black,text=teal!80!black,thick,inner sep=1pt] at (1.9,0.8) {\small $-$};
+\end{tikzpicture}
+\caption{30~nm PEDOT HTL 器件结构和横向收集机制示意图。增大的纵横比为层结构、面积定义和 Ag 外横向收集路径提供了清晰标记空间。}
+\label{fig:structure}
+\end{figure}
+
+\subsection{几何、面积与边界条件}
+
+基准几何为 $5\times5$~mm$^2$ 连续活性区，中央 $2\times2$~mm$^2$ 局部 Ag 顶电极。因此 $\Aactive=25.0$~mm$^2$、$\Aag=4.0$~mm$^2$，Ag 覆盖率为 16\%。PEDOT 的外边界施加零法向横向电流；Ag 覆盖区在第一版中作为等势接触。Ag/PEDOT 接触电阻可以作为后续参数加入。
+
+\section{数学模型与仿真假设}
+
+\subsection{PEDOT 片电导和局部光伏微电池}
+
+PEDOT 面内片电导与方阻为
+\begin{equation}
+G_{\mathrm{sheet}}=\sigpar t_{\mathrm{PEDOT}},\qquad
+\Rs=\frac{1}{\sigpar t_{\mathrm{PEDOT}}}.
+\end{equation}
+
+每一个平面网格单元用局部单二极管等效，局部垂直电流密度写为
+\begin{equation}
+J_{\mathrm{local}}(V)=J_{\mathrm{ph}}-J_0\left[\exp\left(\frac{qV}{nkT}\right)-1\right]-\frac{V}{R_{\mathrm{sh}}}.
+\label{eq:diode}
+\end{equation}
+
+PEDOT 电势由面内电流连续性自洽确定：
+\begin{equation}
+\nabla\cdot\left(G_{\mathrm{sheet}}\nabla V_{\mathrm{PEDOT}}\right)
++J_{\mathrm{local}}\left(V_{\mathrm{PEDOT}}-V_{\mathrm{bottom}}\right)=0.
+\label{eq:network}
+\end{equation}
+
+方程~\eqref{eq:network} 通过有限体积电阻网络离散；每个节点与相邻节点由 PEDOT 面内电导连接，局部二极管项以阻尼 Newton 迭代处理。外加电压扫描后得到终端 J--V 曲线。
+
+\subsection{基准参数}
+
+\begin{table}[H]
+\centering
+\caption{30~nm HTL 的二维模拟参数。ZnO 和 ITO 的实际输运参数尚未耦合进入第一版求解器。}
+\begin{tabularx}{0.93\textwidth}{>{\raggedright\arraybackslash}p{0.34\textwidth} X}
+\toprule
+参数 & 取值 / 处理方式 \\
+\midrule
+活性区、Ag 区 & $5\times5$~mm$^2$；中央 $2\times2$~mm$^2$ \\
+PEDOT 厚度 & 30~nm \\
+PEDOT 横向电导率 & $10^{-4}$--$10^3$~S/cm 的对数扫描 \\
+局部光生电流 $J_{\mathrm{ph}}$ & 24.3865~mA/cm$^2$（网格面积校正后 $J_{\mathrm{sc,ag\_only}}=25$~mA/cm$^2$）\\
+二极管参数 & $J_0=1.870\times10^{-9}$~mA/cm$^2$，$n=1.5$，$T=300$~K \\
+并联电阻 / Ag 接触电阻 & $R_{\mathrm{sh}}=466.15$~$\Omega\cdot$cm$^2$；基准 $R_c=0$ \\
+底电极 & 第一版近似为等势；后续可加入 ITO $\Rs\approx10$~$\Omega/\square$ \\
+Ag & 局部等势顶接触；100~nm Ag 的有限方阻在第一版忽略 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{PEDOT:F 与 AI 4083 的实验材料参数}
+
+用户提供的补充图采用传输线法（TLM）测量 PEDOT:F 和 AI 4083 薄膜的面内电导率。该测量与模型中的 $\sigpar$ 直接对应。表~\ref{tab:materials} 仅记录图中给出的实验值；完整文献信息待后续补入参考文献。
+
+\begin{table}[H]
+\centering
+\caption{由用户提供的 Supplementary Figure 4 整理的面内电导率。右列按 30~nm HTL 换算方阻。}
+\label{tab:materials}
+\begin{tabular}{lccc}
+\toprule
+材料 & $\sigpar$ (S/cm) & 相对 AI 4083 & $\Rs$（30~nm） \\
+\midrule
+PEDOT:F (1:1.96) & $6.2\times10^{-2}$ & 27.0$\times$ & $5.38\times10^6$~$\Omega/\square$ \\
+PEDOT:F (1:3.33) & $7.4\times10^{-3}$ & 3.2$\times$ & $4.50\times10^7$~$\Omega/\square$ \\
+PEDOT:F (1:4.56) & $3.1\times10^{-3}$ & 1.35$\times$ & $1.08\times10^8$~$\Omega/\square$ \\
+PEDOT:F (1:6.56) & $6.8\times10^{-4}$ & 0.30$\times$ & $4.90\times10^8$~$\Omega/\square$ \\
+PEDOT:PSS AI 4083 & $2.3\times10^{-3}$ & 1.0$\times$ & $1.45\times10^8$~$\Omega/\square$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+最高导电的 PEDOT:F (1:1.96) 仍处于低导电 HTL 范围，不能与经重掺杂的高导 PEDOT:PSS（$\gtrsim1$~S/cm）混同。
+
+\section{模拟结果}
+
+\subsection{30 nm HTL：材料锚定的二维比较}
+
+图~\ref{fig:scan30} 是本报告的核心结果，固定 $t_{\mathrm{PEDOT}}=30$~nm。前三列锚定 PEDOT:F / AI 4083 的实测横向电导率，后三列给出模型中的显著收集阈值及更强横向收集条件。每列均在各自最大功率点求解；三行依次为局部收集效率、PEDOT 横向压降和横向电流密度。
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{../results/spatial_material_comparison_30nm.png}
+  \caption{30~nm HTL 的材料锚定二维图谱。各列依次为 PEDOT:F (1:6.56)、AI 4083、PEDOT:F (1:1.96)、0.3、1 和 10~S/cm；每一行采用统一色标。}
+  \label{fig:scan30}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{30~nm HTL 的辅助短路计算。额外电流相对 ``仅 Ag 区受光'' 情形计算。}
+\begin{tabular}{rrrr}
+\toprule
+$\sigpar$ (S/cm) & $\Rs$ ($\Omega/\square$) & Ag 外额外 $J_{\mathrm{sc}}$ & $L_{\mathrm{col}}$ ($\mu$m) \\
+\midrule
+$6.8\times10^{-4}$ & $4.9\times10^8$ & 0.04\% & 13$^\dagger$ \\
+AI 4083: $2.3\times10^{-3}$ & $1.45\times10^8$ & 0.20\% & 13$^\dagger$ \\
+PEDOT:F: $6.2\times10^{-2}$ & $5.38\times10^6$ & 4.82\% & 37 \\
+0.3 & $1.11\times10^6$ & 13.17\% & 79 \\
+1 & $3.33\times10^5$ & 26.33\% & 145 \\
+\textbf{2（核心算例）} & $1.67\times10^5$ & \textbf{38.68\%} & \textbf{208} \\
+10 & $3.33\times10^4$ & 93.89\% & 487 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+由此，若 ``显著'' 定义为 Ag 外区域使终端短路电流增加至少 10\%，30~nm PEDOT 所需的横向电导率约为 $0.2$--$0.3$~S/cm；若目标为数百微米至毫米级的扩展收集，需约 10--30~S/cm 或更高。最高导 PEDOT:F 的 $6.2\times10^{-2}$~S/cm 低于该阈值，在本几何下仅产生 4.82\% 的短路附加收集，且其 MPP 下 Ag 外等效收集长度为零。表中 $^\dagger$ 表示低于 25~$\mu$m 的网格分辨率，只应作“未解析出显著 Ag 外收集”的定性解读。
+
+\subsection{核心算例：$\sigpar=2$~S/cm}
+
+以下将 $\sigpar=2$~S/cm（30~nm，对应 $\Rs=1.67\times10^5$~$\Omega/\square$）作为核心算例。相对 ``仅 Ag 区受光'' 的 $J_{\mathrm{sc,Ag}}=25.00$~mA/cm$^2$ 基准，均匀受光时得到 $J_{\mathrm{sc,Ag}}=34.67$~mA/cm$^2$，即 Ag 外横向收集贡献 $9.67$~mA/cm$^2$（38.68\%）。$V_{\mathrm{oc}}=0.900$~V，$V_{\mathrm{mpp}}=0.759$~V，$I_{\mathrm{mpp}}=1.024$~mA，FF$=0.623$。以 Ag 名义面积归一化的 PCE 为 19.43\%，但以整个连续活性层面积归一化仅为 3.11\%，这正说明前者包含了 Ag 外扩展收集，不能作为本征效率比较。
+
+短路时 $A_{\mathrm{eff}}/A_{\mathrm{Ag}}=1.421$，等效 Ag 外收集长度为 208~$\mu$m；MPP 下分别为 1.050 与 24.8~$\mu$m。后一个长度正处于约 25~$\mu$m 的网格分辨率边界，因而可靠结论是：$\sigpar=2$~S/cm 已可在 MPP 保留有限的 Ag 外贡献，但其精确收集长度还应通过更密网格复核。
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{../results/core_case_sigma_2_dashboard.png}
+  \caption{核心算例 $\sigpar=2$~S/cm 在最大功率点（$V_{\mathrm{mpp}}=0.759$~V）的空间收集与终端 J--V 总览。上排依次为 Ag 图案及面积定义、PEDOT 电势、横向电流密度；下排为局部收集效率、按局部 Ag 名义面积 $A_{\mathrm{Ag}}$ 归一化的终端 J--V（红实线：核心算例；蓝虚线：普通 PEDOT:PSS AI 4083，$\sigpar=2.3\times10^{-3}$~S/cm）、Ag 外收集随距 Ag 边缘距离的衰减与累计贡献。}
+  \label{fig:core-sigma2}
+\end{figure}
+
+\section{模型边界、验证状态与下一步}
+
+\subsection{当前模型可回答的问题}
+\begin{itemize}
+  \item 在给定 Ag 图案、PEDOT 膜厚和面内电导率下，横向收集的空间范围如何变化；
+  \item Ag 外受光区如何抬高名义面积归一化的终端电流；
+  \item 横向压降如何改变局部收集效率及 J--V 形状；
+  \item 实测 PEDOT:F / AI 4083 电导率是否足以解释观测到的空间收集现象。
+\end{itemize}
+
+\subsection{当前限制}
+\begin{enumerate}[label=\arabic*.]
+  \item 局部光伏行为采用单二极管经验模型；本轮将 $J_{\mathrm{sc}}=25$~mA/cm$^2$、$V_{\mathrm{oc}}=0.900$~V、FF$=0.770$ 作为标定目标，但 $J_0$、$n$、$R_{\mathrm{sh}}$ 仍应由暗态和光照 J--V 实验独立验证。
+  \item ITO 的约 10~$\Omega/\square$ 方阻、ZnO 的纵向传输和 Ag 的有限方阻尚未耦合。第一版将底电极和 Ag 接触分别近似为等势。
+  \item 当前 40 点/mm 网格间距约 25~$\mu$m，因此低于该尺度的边缘收集长度需要加密网格后再作定量解释。
+  \item $V_{\mathrm{oc}}$ 以零电流根求解、MPP 以连续一维优化得到；电压扫描范围为 0--1.10~V。
+  \item 模型的 J--V 结果应视为\textbf{机制与趋势预测}，而非未经校准的绝对效率预测。
+\end{enumerate}
+
+\subsection{建议的实验与建模闭环}
+\begin{enumerate}[label=\arabic*.]
+  \item 测量每种 HTL 的实际膜厚与四探针方阻，按 $\sigpar=1/(\Rs t)$ 输入模型；
+  \item 通过不同 Ag 掩模板尺寸或遮挡 Ag 外区域的实验，测量额外光电流；
+  \item 使用暗态 J--V、光照 J--V 及接触电阻测试校准式~\eqref{eq:diode}；
+  \item 在有需要时将 ITO 方阻、ZnO 垂直电阻和真实探针位置加入双导电层二维网络；
+  \item 待简化模型完成实验校准后，再使用 COMSOL 对局部电势、电流拥挤和多物理场效应进行有限元交叉验证。
+\end{enumerate}
+
+\section*{结果文件与复现说明}
+
+本报告的二维结果图由项目主程序生成，位于 \texttt{results/}：
+\begin{itemize}[nosep]
+  \item \texttt{spatial\_material\_comparison\_30nm.png}
+  \item \texttt{conductivity\_scan\_30nm\_summary.png} 与 \texttt{conductivity\_scan\_30nm.csv}
+\end{itemize}
+使用 XeLaTeX 编译本文件即可重建 PDF；在 \texttt{docs/} 目录执行：
+
+\begin{verbatim}
+xelatex -interaction=nonstopmode -halt-on-error simulation_summary.tex
+\end{verbatim}
+
+\end{document}
