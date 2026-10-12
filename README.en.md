@@ -25,6 +25,20 @@ This is a model for mechanisms and trends. Conductivities are inputs that should
 
 The code and documentation are available under the [MIT License](LICENSE).
 
+## Desktop GUI
+
+After installing the dependencies, run `python gui.py` from the repository root. The desktop interface uses Tkinter and embedded Matplotlib plots and requires no browser.
+
+- **Conventional:** enter square side lengths, PEDOT conductivities, thickness, ITO sheet resistance, and nodes per side. View J–V curves, PCE/FF versus area, and an MPP voltage-deviation map.
+- **Inverted:** enter square active-region sizes, the central square Ag pad size, conductivities, thickness, and illumination mode. `full` illuminates the entire active region, `ag_only` the Ag-covered region, and `outside_ag` the uncovered region. ITO sheet resistance is not used in this branch.
+- **Sheet resistance:** the minimum and maximum supplied conductivities define the horizontal range. Two ITO sheet-resistance endpoints define the vertical range; color shows composite sheet resistance on a logarithmic scale.
+
+Select a row in the Data tab to display its MPP map. Calculation runs in a background thread. Stop takes effect after the current case finishes and preserves completed cases. Export creates a new subdirectory containing parameters in JSON, the current plot in PNG, full summary metrics, per-case J–V CSVs, and MPP spatial CSVs. Mapping mode exports conductivity, ITO sheet resistance, and composite sheet resistance.
+
+Local photovoltaic calibration remains fixed as in the original scripts; the GUI does not independently adjust Jsc, Voc, or FF. J–V plots display 0–0.95 V; exports retain the full computed range. Nodes per side must be 11–301, with at most 60 cases per interactive sweep. The inverted default is 201 nodes, giving approximately 25 µm spacing at 5 mm; compare mesh resolutions before interpreting small collection lengths.
+
+Official Windows Python distributions usually include Tkinter. On Linux, install the system `python3-tk` package if needed. Run backend checks with `python -m unittest discover -s tests -v`.
+
 ## Scientific question
 
 The inverted-cell model describes organic solar cells with a local Ag top electrode deposited through a shadow mask. Ag covers only part of a continuous active layer and PEDOT hole-transport layer (HTL). Under uniform illumination, regions outside the Ag pad also generate carriers.

@@ -35,6 +35,8 @@ class ForwardResult:
     potential: Optional[np.ndarray] = None
     x_mm: Optional[np.ndarray] = None
     y_mm: Optional[np.ndarray] = None
+    voltage: Optional[np.ndarray] = None
+    j_ag: Optional[np.ndarray] = None
 
 
 def anode_sheet_properties(sigma_pedot: float, thickness_nm: float = 30.0,
@@ -136,6 +138,7 @@ def solve_forward_edge_case(side_mm: float, sigma_pedot: float,
         pedot_conductance_fraction=props["pedot_fraction"], jsc=jsc, voc=voc,
         vmpp=vmpp, jmpp=impp / geometry.active_area, ff=ff, pce=pce,
         potential=potential, x_mm=x_mm, y_mm=y_mm,
+        voltage=voltages.copy(), j_ag=currents / geometry.ag_area,
     )
 
 
